@@ -1,6 +1,8 @@
 go-ouitools
 ===========
 
+Forked to be able to create new db from string
+
 Golang tools to work with Mac addresses and oui. Includes oui database to resolve to vendor. 
 
 ## Sample

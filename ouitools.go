@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 // https://code.wireshark.org/review/gitweb?p=wireshark.git;a=blob_plain;f=manuf
@@ -121,10 +122,19 @@ type OuiDb struct {
 	t map[int]t2
 }
 
-// New returns a new OUI database loaded from the specified file.
-func New(file string) *OuiDb {
+// NewFromFile returns a new OUI database loaded from the specified file.
+func NewFromFile(file string) *OuiDb {
 	db := &OuiDb{}
-	if err := db.Load(file); err != nil {
+	if err := db.LoadFromFile(file); err != nil {
+		return nil
+	}
+	return db
+}
+
+// NewFromString returns a new OUI database loaded from the specified file.
+func NewFromString(str *string) *OuiDb {
+	db := &OuiDb{}
+	if err := db.LoadFromString(str); err != nil {
 		return nil
 	}
 	return db
@@ -163,7 +173,7 @@ func byteIndex(s string, c byte) int {
 	return -1
 }
 
-func (m *OuiDb) Load(path string) error {
+func (m *OuiDb) LoadFromFile(path string) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return (err)
@@ -226,7 +236,68 @@ func (m *OuiDb) Load(path string) error {
 		return (err)
 	}
 
-	return (nil)
+	return nil
+}
+
+func (m *OuiDb) LoadFromString(str *string) error {
+	fieldsRe := regexp.MustCompile(`^(\S+)\t+(\S+)(\s+#\s+(\S.*))?`)
+
+	re := regexp.MustCompile(`((?:(?:[0-9a-zA-Z]{2})[-:]){2,5}(?:[0-9a-zA-Z]{2}))(?:/(\w{1,2}))?`)
+
+	scanner := bufio.NewScanner(strings.NewReader(*str))
+	for scanner.Scan() {
+		text := scanner.Text()
+		if text == "" || text[0] == '#' || text[0] == '\t' {
+			continue
+		}
+
+		block := AddressBlock{}
+
+		// Split input text into address, short organization name
+		// and full organization name
+		fields := fieldsRe.FindAllStringSubmatch(text, -1)
+		addr := fields[0][1]
+		if fields[0][4] != "" {
+			block.Organization = fields[0][4]
+		} else {
+			block.Organization = fields[0][2]
+		}
+
+		matches := re.FindAllStringSubmatch(addr, -1)
+		if len(matches) == 0 {
+			continue
+		}
+
+		s := matches[0][1]
+
+		i := byteIndex(s, '/')
+
+		if i == -1 {
+			block.Oui, _ = ParseOUI(s, 6)
+			block.Mask = 24 // len(block.Oui) * 8
+		} else {
+			block.Oui, _ = ParseOUI(s[:i], 6)
+			block.Mask, _ = strconv.Atoi(s[i+1:])
+		}
+
+		//fmt.Println("OUI:", block.Oui, block.Mask, err)
+
+		m.Blocks = append(m.Blocks, block)
+
+		// create smart map
+		for i := len(block.Oui) - 1; i >= 0; i-- {
+			_ = block.Oui[i]
+
+		}
+
+		// fmt.Printf("BLA %v %v ALB", m.hw, m.mask)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func CIDRMask(ones, bits int) []byte {

@@ -22,21 +22,21 @@ func lookup(t *testing.T, mac, org string) {
 }
 
 func TestInitialization(t *testing.T) {
-	db = New("oui.txt")
+	db = NewFromFile("oui.txt")
 	if db == nil {
 		t.Fatal("can't load database file oui.txt")
 	}
 }
 
 func TestMissingDBFile(t *testing.T) {
-	db := New("bad-file")
+	db := NewFromFile("bad-file")
 	if db != nil {
 		t.Fatal("didn't return nil on missing file")
 	}
 }
 
 func TestInvalidDBFile(t *testing.T) {
-	db := New("ouidb_test.go")
+	db := NewFromFile("ouidb_test.go")
 	if db != nil {
 		t.Fatal("didn't return nil on bad file")
 	}
